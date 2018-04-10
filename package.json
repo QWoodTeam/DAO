@@ -1,0 +1,24 @@
+{
+  "name": "dao",
+  "version": "0.0.1",
+  "description": "DAO smart-contract for Qwood",
+  "author": "Vladimir Sushkov <volodya.sushkov@gmail.com>",
+  "scripts": {
+    "compile": "truffle compile",
+    "develop": "truffle develop",
+    "develop:log": "truffle develop --log",
+    "ropsten": "truffle console --network ropsten"
+  },
+  "dependencies": {
+    "babel-polyfill": "^6.7.4",
+    "babel-preset-es2015": "^6.3.13",
+    "babel-preset-stage-2": "^6.3.13",
+    "babel-preset-stage-3": "^6.3.13",
+    "convict": "^4.2.0",
+    "dotenv": "^5.0.1",
+    "truffle": "^4.1.5",
+    "truffle-hdwallet-provider": "git+https://github.com/trufflesuite/truffle-hdwallet-provider.git",
+    "web3": "0.20.1",
+    "zeppelin-solidity": "^1.8.0"
+  }
+}
