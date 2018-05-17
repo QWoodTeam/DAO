@@ -7,7 +7,10 @@
     "compile": "truffle compile",
     "develop": "truffle develop",
     "develop:log": "truffle develop --log",
-    "ropsten": "truffle console --network ropsten"
+    "ropstenInfura": "truffle console --network ropstenInfura",
+    "ropstenNode": "truffle console --network ropstenNode",
+    "mainnetInfura": "truffle console --network mainnetInfura",
+    "mainnetNode": "truffle console --network mainnetNode"
   },
   "dependencies": {
     "babel-polyfill": "^6.7.4",

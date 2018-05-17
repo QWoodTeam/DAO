@@ -7,18 +7,48 @@ dotenv.config({
 });
 
 const config = convict({
-  key: {
+  infuraApiKey: {
     doc: 'Infura API key.',
     format: '*',
     default: '',
     env: 'INFURA_API_KEY'
   },
-  mnemonic: {
-    doc: 'Mnenonic phrase (12 words).',
+  ropstenMnemonic: {
+    doc: 'Mnenonic phrase (12 words) for Ropsten test network.',
     format: '*',
     default: '',
-    env: 'MNEMONIC'
-  }
+    env: 'ROPSTEN_MNEMONIC'
+  },
+  ropstenGasLimit: {
+    doc: 'Gas limit for Ropsten test network.',
+    format: '*',
+    default: '4000000',
+    env: 'ROPSTEN_GAS_LIMIT'
+  },
+  ropstenGasPrice: {
+    doc: 'Gas price for Ropsten test network.',
+    format: '*',
+    default: '100000000000',
+    env: 'ROPSTEN_GAS_PRICE'
+  },
+  mainnetMnemonic: {
+    doc: 'Mnenonic phrase (12 words) for main Ethereum network.',
+    format: '*',
+    default: '',
+    env: 'MAINNET_MNEMONIC'
+  },
+  mainnetGasLimit: {
+    doc: 'Gas limit for main Ethereum network.',
+    format: '*',
+    default: '4000000',
+    env: 'MAINNET_GAS_LIMIT'
+  },
+  mainnetGasPrice: {
+    doc: 'Gas price for main Ethereum network.',
+    format: '*',
+    default: '1000000000',
+    env: 'MAINNET_GAS_PRICE'
+  },
 });
 
 config.validate({ allowed: 'strict' });
