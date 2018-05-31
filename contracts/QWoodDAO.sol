@@ -1,21 +1,43 @@
 pragma solidity ^0.4.16;
 
-contract owned {
+
+/**
+ * @title Ownable
+ * @dev The Ownable contract has an owner address, and provides basic authorization control
+ * functions, this simplifies the implementation of "user permissions".
+ */
+contract Ownable {
   address public owner;
 
-  function owned() public {
+  event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+  /**
+   * @dev The Ownable constructor sets the original `owner` of the contract to the sender
+   * account.
+   */
+  function Ownable() public {
     owner = msg.sender;
   }
 
-  modifier onlyOwner {
+  /**
+   * @dev Throws if called by any account other than the owner.
+   */
+  modifier onlyOwner() {
     require(msg.sender == owner);
     _;
   }
 
-  function transferOwnership(address newOwner) onlyOwner public {
+  /**
+   * @dev Allows the current owner to transfer control of the contract to a newOwner.
+   * @param newOwner The address to transfer ownership to.
+   */
+  function transferOwnership(address newOwner) public onlyOwner {
+    require(newOwner != address(0));
+    OwnershipTransferred(owner, newOwner);
     owner = newOwner;
   }
 }
+
 
 contract tokenRecipient {
   event receivedEther(address sender, uint amount);
@@ -38,9 +60,9 @@ contract Token {
 }
 
 /**
- * The shareholder association contract itself
+ * QWoodDAO contract
  */
-contract Association is owned, tokenRecipient {
+contract QWoodDAO is Ownable, tokenRecipient {
 
   uint public minimumQuorum;
   uint public debatingPeriodInMinutes;
@@ -82,7 +104,7 @@ contract Association is owned, tokenRecipient {
    *
    * First time setup
    */
-  function Association(Token sharesAddress, uint minimumSharesToPassAVote, uint minutesForDebate) payable public {
+  function QWoodDAO(Token sharesAddress, uint minimumSharesToPassAVote, uint minutesForDebate) payable public {
     changeVotingRules(sharesAddress, minimumSharesToPassAVote, minutesForDebate);
   }
 
