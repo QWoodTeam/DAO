@@ -113,7 +113,7 @@ contract QWoodDAOToken is ERC20, Ownable {
   string public constant NAME = "QWoodDAO";
   string public constant SYMBOL = "QOD";
   uint8 public constant DECIMALS = 18;
-  uint256 public constant INITIAL_SUPPLY = 9000000 * (10 ** uint256(decimals));
+  uint256 public constant INITIAL_SUPPLY = 9000000 * (10 ** uint256(DECIMALS));
 
   mapping (address => uint256) balances;
   mapping (address => mapping (address => uint256)) internal allowed;
@@ -293,13 +293,13 @@ contract QWoodDAOToken is ERC20, Ownable {
 
   // INTERNAL
 
-  function _balanceOf(address _owner) internal pure returns (uint256) {
+  function _balanceOf(address _owner) internal view returns (uint256) {
     if (_owner == dao) {
       uint256 _frozen;
       uint _period = _getPeriodFor(now);
 
       if (_period == 0) _frozen = 7000000;
-      if (_period == 1) _frozen = 7000000 - 250000 * weekFor(now);
+      if (_period == 1) _frozen = 7000000 - 250000 * _weekFor(now);
       if (_period == 2) _frozen = 1000000;
       if (_period == 3) _frozen = 0;
 
@@ -309,14 +309,14 @@ contract QWoodDAOToken is ERC20, Ownable {
     return balances[_owner];
   }
 
-  function _getPeriodFor(uint ts) internal pure returns (uint) {
+  function _getPeriodFor(uint ts) internal view returns (uint) {
     if (ts < periodOne) return 0;
     if (ts >= periodThree) return 3;
     if (ts >= periodTwo) return 2;
     if (ts >= periodOne) return 1;
   }
 
-  function _weekFor(uint ts) internal pure returns (uint) {
+  function _weekFor(uint ts) internal view returns (uint) {
     return ts < periodOne ? 0 : (ts - periodOne) / 1 weeks + 1;
   }
 }
