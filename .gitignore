@@ -8,3 +8,6 @@ npm-debug.log*
 
 ### Truffle
 /build
+
+### Custom
+/scripts/config/accounts.json
