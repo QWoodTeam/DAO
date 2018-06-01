@@ -1,6 +1,8 @@
 let QWoodDAOToken = artifacts.require("./QWoodDAOToken.sol"),
     QWoodDAO = artifacts.require("./QWoodDAO.sol");
 
+const util = require('./utils/util');
+
 const configAccounts = require(`./config/accounts.json`);
 
 const init = async function (accounts) {
@@ -22,19 +24,29 @@ const init = async function (accounts) {
   let dao = await QWoodDAO.deployed();
   console.log("QWoodDAO address: " + QWoodDAO.address);
 
-  // TODO: transfer tokens to owner
+  console.log("Transfer tokens to owner.."); // 500 000
+  let tx = await token.transfer(ownerAccount, '500000000000000000000000', { from: deployerAccount }); // 10**18 = 1000000000000000000
+  util.printTxInfo(tx, `passed`);
 
-  // TODO: transfer tokens to investors
+  console.log("Transfer tokens to investors.."); // 1 500 000
+  tx = await token.transfer(investorsAccount, '1500000000000000000000000', { from: deployerAccount }); // 10**18 = 1000000000000000000
+  util.printTxInfo(tx, `passed`);
 
-  // TODO: set dao address in token contract
+  console.log("Set dao address in token contract..");
+  tx = await token.setDAOContract(QWoodDAO.address, { from: deployerAccount });
+  util.printTxInfo(tx, `passed`);
 
-  // TODO: transfer tokens to dao contract
+  console.log("Transfer tokens to dao contract.."); // 7 000 000
+  tx = await token.transfer(QWoodDAO.address, '7000000000000000000000000', { from: deployerAccount }); // 10**18 = 1000000000000000000
+  util.printTxInfo(tx, `passed`);
 
-  // TODO: set owner of token contract to 0x0
+  console.log("Set owner of token contract to ownerAccount");
+  tx = await token.transferOwnership(ownerAccount, { from: deployerAccount });
+  util.printTxInfo(tx, `passed`);
 
-  // TODO: unpause dao contract (add this functionality)
-
-  // TODO: set owner of dao contract to ownerAccount
+  console.log("Set owner of dao contract to ownerAccount");
+  tx = await dao.transferOwnership(ownerAccount, { from: deployerAccount });
+  util.printTxInfo(tx, `passed`);
 
   console.log("Init script end.");
 };

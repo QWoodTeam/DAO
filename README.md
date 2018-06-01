@@ -23,7 +23,7 @@ $ npm run ropstenInfura
 ### Run in Ropsten test network (Geth)
 #### Geth node start
 ```
-geth --testnet --syncmode "light" --rpc --rpcport 7545 --rpcapi "personal,admin,eth,web3,net" --rpccorsdomain "*" --rpcvhosts "*" -maxpendpeers 10
+geth --testnet --syncmode "light" --rpc --rpcport 7545 --rpcapi "personal,admin,eth,web3,net" --rpccorsdomain "*" --rpcvhosts "*" --maxpendpeers 10
 ```
 #### Run
 ```
@@ -40,11 +40,21 @@ $ npm run mainnetInfura
 ### Run in main Ethereum network (Geth)
 ### Geth node start
 ```
-geth --syncmode "light" --rpc --rpcport 7545 --rpcapi "personal,admin,eth,web3,net" --rpccorsdomain "*" --rpcvhosts "*" -maxpendpeers 10
+geth --syncmode "light" --rpc --rpcport 7545 --rpcapi "personal,admin,eth,web3,net" --rpccorsdomain "*" --rpcvhosts "*" --maxpendpeers 10
 ```
 #### Run
 ```
 $ npm run mainnetNode
 > compile
 > migrate --reset
+```
+## Deploy
+```
+1. Configure accounts in script/config/accounts.json
+2. Configure params in migrations/2_deploy_contracts.js
+3. Configure deployer account (nmemonic in .env)
+4. Set gaslimit/gasprice (.env)
+truffle compile --network <NET>
+truffle migrate --network <NET> --reset
+truffle exec scripts/init.js --network <NET>
 ```

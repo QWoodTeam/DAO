@@ -69,11 +69,12 @@ contract QWoodDAO is Ownable, tokenRecipient {
   Proposal[] public proposals;
   uint public numProposals;
   Token public sharesTokenAddress;
+  uint256 public minShare;
 
   event ProposalAdded(uint proposalID, address recipient, uint amount, string description);
   event Voted(uint proposalID, bool position, address voter);
   event ProposalTallied(uint proposalID, uint result, uint quorum, bool active);
-  event ChangeOfRules(uint newMinimumQuorum, uint newDebatingPeriodInMinutes, address newSharesTokenAddress);
+  event ChangeOfRules(uint newMinimumQuorum, uint newDebatingPeriodInMinutes, address newSharesTokenAddress, uint256 newMinShare);
 
   struct Proposal {
     address recipient;
@@ -95,7 +96,7 @@ contract QWoodDAO is Ownable, tokenRecipient {
 
   // Modifier that allows only shareholders to vote and create new proposals
   modifier onlyShareholders {
-    require(sharesTokenAddress.balanceOf(msg.sender) > 0);
+    require(sharesTokenAddress.balanceOf(msg.sender) > minShare);
     _;
   }
 
@@ -104,8 +105,8 @@ contract QWoodDAO is Ownable, tokenRecipient {
    *
    * First time setup
    */
-  function QWoodDAO(Token sharesAddress, uint minimumSharesToPassAVote, uint minutesForDebate) payable public {
-    changeVotingRules(sharesAddress, minimumSharesToPassAVote, minutesForDebate);
+  function QWoodDAO(Token sharesAddress, uint minimumSharesToPassAVote, uint minutesForDebate, uint256 minimumShare) payable public {
+    changeVotingRules(sharesAddress, minimumSharesToPassAVote, minutesForDebate, minimumShare);
   }
 
   /**
@@ -117,13 +118,15 @@ contract QWoodDAO is Ownable, tokenRecipient {
    * @param sharesAddress token address
    * @param minimumSharesToPassAVote proposal can vote only if the sum of shares held by all voters exceed this number
    * @param minutesForDebate the minimum amount of delay between when a proposal is made and when it can be executed
+   * @param minimumShare the minimum share of shareholders
    */
-  function changeVotingRules(Token sharesAddress, uint minimumSharesToPassAVote, uint minutesForDebate) onlyOwner public {
+  function changeVotingRules(Token sharesAddress, uint minimumSharesToPassAVote, uint minutesForDebate, uint256 minimumShare) onlyOwner public {
     sharesTokenAddress = Token(sharesAddress);
     if (minimumSharesToPassAVote == 0 ) minimumSharesToPassAVote = 1;
     minimumQuorum = minimumSharesToPassAVote;
     debatingPeriodInMinutes = minutesForDebate;
-    ChangeOfRules(minimumQuorum, debatingPeriodInMinutes, sharesTokenAddress);
+    minShare = minimumShare;
+    ChangeOfRules(minimumQuorum, debatingPeriodInMinutes, sharesTokenAddress, minShare);
   }
 
   /**

@@ -110,10 +110,10 @@ contract Ownable {
 contract QWoodDAOToken is ERC20, Ownable {
   using SafeMath for uint256;
 
-  string public constant NAME = "QWoodDAO";
-  string public constant SYMBOL = "QOD";
-  uint8 public constant DECIMALS = 18;
-  uint256 public constant INITIAL_SUPPLY = 9000000 * (10 ** uint256(DECIMALS));
+  string public constant name = "QWoodDAO";
+  string public constant symbol = "QOD";
+  uint8 public constant decimals = 18;
+  uint256 public constant INITIAL_SUPPLY = 9000000 * (10 ** uint256(decimals));
 
   mapping (address => uint256) balances;
   mapping (address => mapping (address => uint256)) internal allowed;
@@ -303,7 +303,7 @@ contract QWoodDAOToken is ERC20, Ownable {
       if (_period == 2) _frozen = 1000000;
       if (_period == 3) _frozen = 0;
 
-      return balances[_owner].sub(_frozen);
+      return balances[_owner].sub(_frozen * (10 ** uint256(decimals)));
     }
 
     return balances[_owner];
