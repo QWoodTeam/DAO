@@ -453,10 +453,13 @@ contract QWoodDAOToken is ERC20, Ownable {
     if (_owner == dao) {
       uint256 _frozen;
       uint _period = _getPeriodFor(now);
+      uint256 _frozenMax = 7000000;
+      uint256 _frozenMin = 1000000;
+      uint256 _frozenStep = 250000;
 
-      if (_period == 0) _frozen = 7000000;
-      if (_period == 1) _frozen = 7000000 - 250000 * _weekFor(now);
-      if (_period == 2) _frozen = 1000000;
+      if (_period == 0) _frozen = _frozenMax;
+      if (_period == 1) _frozen = _frozenMax.sub(_frozenStep.mul(_weekFor(now)));
+      if (_period == 2) _frozen = _frozenMin;
       if (_period == 3) _frozen = 0;
 
       return balances[_owner].sub(_frozen * (10 ** uint256(decimals)));
