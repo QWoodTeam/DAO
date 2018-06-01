@@ -1,6 +1,7 @@
-# Qwood DAO
-DAO smart-contract for Qwood.  
-With using [Truffle framework](http://truffleframework.com/).
+# QWood Decentralized Autonomous Organization
+### - ERC827 freezable token smart-contract for DAO.
+### - Decentralized organization of shareholders with voting rights.
+With using [Truffle framework](http://truffleframework.com/). Powered by [Ethereum](https://ethereum.org/).
 ## Install
 ```
 $ npm i -g truffle
