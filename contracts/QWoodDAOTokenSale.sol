@@ -59,6 +59,7 @@ library SafeMath {
 contract ERC20 {
   function balanceOf(address who) public view returns (uint256);
   function transfer(address to, uint256 value) public returns (bool);
+  function transferFrom(address from, address to, uint256 value) public returns (bool);
 }
 
 
@@ -159,6 +160,7 @@ contract Pausable is Ownable {
 }
 
 
+// TODO: Add pausable functionality
 /**
  * @title QWoodDAOTokenSale
  * @dev The QWoodDAOTokenSale contract receive ether and other foreign tokens and exchange them to set tokens.
@@ -291,19 +293,17 @@ contract QWoodDAOTokenSale is Pausable {
     uint256 weiAmount = msg.value;
     require(weiAmount != 0);
 
-    // _preValidatePurchase(_beneficiary, weiAmount);
-
     // TODO: test
     uint256 tokenBalance = token.balanceOf(address(this));
     require(tokenBalance > 0);
 
     // calculate token amount to be created
-    uint256 tokens = _getTokenAmount(weiAmount);
+    uint256 tokens = _getTokenAmount(address(0), weiAmount);
 
     // TODO: test
     if (tokens > tokenBalance) {
       tokens = tokenBalance; // new tokens
-      weiAmount = _getWeiAmount(tokens); // new weiAmount
+      weiAmount = _inverseGetTokenAmount(address(0), tokens); // new weiAmount
 
       uint256 senderExcess = msg.value.sub(weiAmount);
       msg.sender.transfer(senderExcess);
@@ -445,13 +445,108 @@ contract QWoodDAOTokenSale is Pausable {
     );
   }
 
-  // TODO: Add receiving foreign tokens (receiveApproval, tokenFallback interfaces)
-  // TODO: Exchange foreign tokens to QOD: transfer tokens to wallet and send QOD in return
+  // TODO: add tokenFallback interface -- transferAndCall scenario
 
+
+  // Token recipient interface implementation
+
+  event ReceivedTokens(
+    address _from,
+    uint256 _amount,
+    address _tokenAddress,
+    bytes _extraData
+  );
+
+  // For approveAndCall scenario
+  function receiveApproval(
+    address _from,
+    uint256 _amount,
+    address _tokenAddress,
+    bytes _extraData
+  )
+    public
+  {
+
+    require(_from != address(0));
+    require(_tokenAddress != address(0));
+    require(receivedTokens[_tokenAddress].rate > 0); // check: token in receivedTokens
+    require(_amount > 0);
+
+    require(msg.sender == _tokenAddress);
+
+    emit ReceivedTokens(
+      _from,
+      _amount,
+      _tokenAddress,
+      _extraData
+    );
+
+    _exchangeTokens(ERC20(_tokenAddress), _from, _amount);
+  }
+
+  // For approve + transferFrom scenario
+  function depositToken(
+    ERC20 _tokenAddress,
+    uint256 _amount
+  )
+    public
+  {
+    // Remember to call ERC20(address).approve(this, amount) or this contract will not be able to do the transfer on your behalf
+    require(_tokenAddress != address(0));
+    require(receivedTokens[_tokenAddress].rate > 0); // check: token in receivedTokens
+    require(_amount > 0);
+
+    _exchangeTokens(_tokenAddress, msg.sender, _amount);
+  }
 
   // -----------------------------------------
   // Internal interface
   // -----------------------------------------
+
+  // low-level exchange method
+  function _exchangeTokens(
+    ERC20 _tokenAddress,
+    address _sender,
+    uint256 _amount
+  )
+    internal
+  {
+    uint256 foreignTokenAmount = _amount;
+
+    // Transfer tokens to this contract
+    require(_tokenAddress.transferFrom(_sender, address(this), foreignTokenAmount));
+
+    // check balance tokens on this contract
+    uint256 tokenBalance = token.balanceOf(address(this));
+    require(tokenBalance > 0);
+
+    // calculate token amount
+    uint256 tokens = _getTokenAmount(_tokenAddress, foreignTokenAmount);
+
+    // check: token excess
+    if (tokens > tokenBalance) {
+      tokens = tokenBalance;
+      foreignTokenAmount = _inverseGetTokenAmount(_tokenAddress, tokens); // new foreign tokens amount
+
+      uint256 senderForeignTokenExcess = _amount.sub(foreignTokenAmount);
+      _tokenAddress.transfer(_sender, senderForeignTokenExcess);
+    }
+
+    // update raised state
+    receivedTokens[_tokenAddress].raised = receivedTokens[_tokenAddress].raised.add(foreignTokenAmount);
+
+    // transfer tokens to sender
+    _processPurchase(_sender, tokens);
+    emit TokenPurchase(
+      _sender,
+      _sender,
+      foreignTokenAmount,
+      tokens
+    );
+
+    // transfer foreign tokens to wallet (or collect)
+    _forwardTokens(_tokenAddress, foreignTokenAmount);
+  }
 
   /**
    * @dev Source of tokens. Override this method to modify the way in which the crowdsale ultimately gets and sends its tokens.
@@ -482,20 +577,38 @@ contract QWoodDAOTokenSale is Pausable {
   }
 
   /**
-   * @dev Override to extend the way in which ether is converted to tokens.
-   * @param _weiAmount Value in wei to be converted into tokens
-   * @return Number of tokens that can be purchased with the specified _weiAmount
+   * @dev Override to extend the way in which ether or foreign token unit is converted to tokens.
+   * @param _tokenAddress Address of foreign token or 0 if ether to tokens
+   * @param _amount Value in wei or foreign token units to be converted into tokens
+   * @return Number of tokens that can be purchased with the specified _amount (wei or foreign token units)
    */
-  function _getTokenAmount(uint256 _weiAmount)
+  function _getTokenAmount(address _tokenAddress, uint256 _amount)
   internal view returns (uint256)
   {
-    return _weiAmount.mul(rate);
+    uint256 _rate;
+
+    if (_tokenAddress == address(0)) {
+      _rate = rate;
+    } else {
+      _rate = receivedTokens[_tokenAddress].rate;
+    }
+
+    return _amount.mul(_rate);
   }
 
-  function _getWeiAmount(uint256 _tokenAmount)
+  // Get wei or foreign tokens amount (inverse _getTokenAmount method)
+  function _inverseGetTokenAmount(address _tokenAddress, uint256 _tokenAmount)
   internal view returns (uint256)
   {
-    return _tokenAmount.div(rate);
+    uint256 _rate;
+
+    if (_tokenAddress == address(0)) {
+      _rate = rate;
+    } else {
+      _rate = receivedTokens[_tokenAddress].rate;
+    }
+
+    return _tokenAmount.div(_rate);
   }
 
   /**
@@ -503,5 +616,12 @@ contract QWoodDAOTokenSale is Pausable {
    */
   function _forwardFunds(uint256 _weiAmount) internal {
     wallet.transfer(_weiAmount);
+  }
+
+  /**
+   * @dev Determines how foreign tokens is stored/forwarded on purchases.
+   */
+  function _forwardTokens(ERC20 _tokenAddress, uint256 _amount) internal {
+    _tokenAddress.transfer(wallet, _amount);
   }
 }
