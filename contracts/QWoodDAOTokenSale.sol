@@ -249,6 +249,15 @@ contract QWoodDAOTokenSale is Pausable {
     uint256 newRate
   );
 
+  /**
+   * Event for send excess ether logging
+   * @param beneficiary who gets excess ether
+   * @param value excess weis
+   */
+  event SendEtherExcess(
+    address indexed beneficiary,
+    uint256 value
+  );
 
   /**
    * @param _rate Number of token units a buyer gets per wei
@@ -307,6 +316,11 @@ contract QWoodDAOTokenSale is Pausable {
 
       uint256 senderExcess = msg.value.sub(weiAmount);
       msg.sender.transfer(senderExcess);
+
+      emit SendEtherExcess(
+        msg.sender,
+        senderExcess
+      );
     }
 
     // update state
@@ -323,7 +337,6 @@ contract QWoodDAOTokenSale is Pausable {
     _forwardFunds(weiAmount); // transfer ether to wallet
   }
 
-  // TODO: test
   /**
    * @dev Sets new rate.
    * @param _newRate New number of token units a buyer gets per wei
@@ -335,7 +348,6 @@ contract QWoodDAOTokenSale is Pausable {
     emit ChangeRate(_newRate);
   }
 
-  // TODO: test
   /**
    * @dev Set new wallet address.
    * @param _newWallet New address where collected funds will be forwarded to
@@ -345,7 +357,6 @@ contract QWoodDAOTokenSale is Pausable {
     wallet = _newWallet;
   }
 
-  // TODO: test
   /**
    * @dev Set new token address.
    * @param _newToken New address of the token being sold

@@ -14,7 +14,7 @@ const minimumSharesToPassAVote = '1000000000000000000000000', // 1 000 000  *  1
 module.exports = function(deployer, network, accounts) {
   const deployerAccount = accounts[0];
 
-  console.log(deployerAccount);
+  // console.log(deployerAccount);
 
   deployer.deploy(QWoodDAOToken, periodOne, periodTwo, periodThree, {from: deployerAccount})
     .then(() => deployer.deploy(QWoodDAO, QWoodDAOToken.address, minimumSharesToPassAVote, minutesForDebate, minShare, {from: deployerAccount}));
