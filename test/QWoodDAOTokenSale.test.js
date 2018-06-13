@@ -12,6 +12,10 @@ const should = require('chai')
 const QWoodDAOTokenSale = artifacts.require("./QWoodDAOTokenSale.sol");
 const QWoodDAOToken = artifacts.require("./QWoodDAOToken.sol");
 
+const TestToken1 = artifacts.require("./TestToken1.sol"),
+      TestToken2 = artifacts.require("./TestToken2.sol"),
+      TestToken3 = artifacts.require("./TestToken3.sol");
+
 contract("QWoodDAOTokenSale", function(accounts) {
   const eq = assert.equal.bind(assert);
 
@@ -39,6 +43,8 @@ contract("QWoodDAOTokenSale", function(accounts) {
   const valEth = new BN('1e18'),
         valToken = valEth.mul(initRate);
 
+  let testToken1, testToken2, testToken3;
+
   // Deploy contracts
   const deploy = async (_rate, _tokensForSale) => {
     token = await QWoodDAOToken.new(periodOne, periodTwo, periodThree, { from: owner });
@@ -46,6 +52,12 @@ contract("QWoodDAOTokenSale", function(accounts) {
 
     // transfer tokens to tokensale contract
     await token.transfer(tokensale.address, _tokensForSale, { from: owner });
+  };
+
+  const deployTestTokens = async () => {
+    testToken1 = await TestToken1.new({ from: owner });
+    testToken2 = await TestToken2.new({ from: owner });
+    testToken3 = await TestToken3.new({ from: owner });
   };
 
   // before(() => {});
@@ -147,12 +159,15 @@ contract("QWoodDAOTokenSale", function(accounts) {
 
     it('should forward funds to wallet', async function () {
       const pre = web3.eth.getBalance(ledger);
+      const preWeiRaised = await tokensale.weiRaised();
 
       await tokensale.sendTransaction({ value: valEth, from: user1 });
 
       const post = web3.eth.getBalance(ledger);
+      const postWeiRaised = await tokensale.weiRaised();
 
       post.minus(pre).should.be.bignumber.equal(valEth);
+      postWeiRaised.minus(preWeiRaised).should.be.bignumber.equal(valEth);
     });
   });
 
@@ -177,11 +192,71 @@ contract("QWoodDAOTokenSale", function(accounts) {
 
     it('should forward funds to wallet', async function () {
       const pre = web3.eth.getBalance(ledger);
+      const preWeiRaised = await tokensale.weiRaised();
 
       await tokensale.buyTokens(userBeneficiary, { value: valEth, from: user1 });
 
       const post = web3.eth.getBalance(ledger);
+      const postWeiRaised = await tokensale.weiRaised();
       post.minus(pre).should.be.bignumber.equal(valEth);
+      postWeiRaised.minus(preWeiRaised).should.be.bignumber.equal(valEth);
+    });
+  });
+
+  describe('High-level purchase with excess for ether', function () {
+    const newRate = new BN(100000); // rate = 100 000 QOD decimals for 1 wei
+
+    const ether = new BN('7e18'), // 7 ETH
+          cost = tokensForSale.div(newRate); // 5 ETH
+          excess = ether.minus(cost); // 2 ETH
+
+    beforeEach(async () => {
+      // 5 ETH = all 500 000 QOD
+      await tokensale.setRate(newRate, { from: owner });
+    });
+
+    it('should log send excess', async function () {
+      const { logs } = await tokensale.sendTransaction({ value: ether, from: user1 });
+      const event = logs.find(e => e.event === 'SendEtherExcess');
+      should.exist(event);
+      event.args.beneficiary.should.equal(user1);
+      event.args.value.should.be.bignumber.equal(excess);
+    });
+
+    it('should return excess ether to sender', async function () {
+      const pre = web3.eth.getBalance(user1);
+
+      const { receipt } = await tokensale.sendTransaction({ value: ether, from: user1 });
+
+      const gas = gasPrice.mul(new BN(receipt.gasUsed));
+
+      const post = web3.eth.getBalance(user1);
+
+      pre.minus(post).minus(gas).should.be.bignumber.equal(cost);
+
+      const balance = await token.balanceOf(user1);
+      balance.should.be.bignumber.equal(tokensForSale); // all 500 000 QOD
+
+      const contractBalance = await token.balanceOf(tokensale.address);
+      contractBalance.should.be.bignumber.equal(new BN(0)); // no tokens
+    });
+
+    it('should forward funds to wallet without sender excess', async function () {
+      const pre = web3.eth.getBalance(ledger);
+      const preWeiRaised = await tokensale.weiRaised();
+
+      await tokensale.sendTransaction({ value: ether, from: user1 });
+
+      const post = web3.eth.getBalance(ledger);
+      const postWeiRaised = await tokensale.weiRaised();
+      post.minus(pre).should.be.bignumber.equal(cost);
+      postWeiRaised.minus(preWeiRaised).should.be.bignumber.equal(cost);
+    });
+
+    it('should fail if tokens on tokensale contract is 0', async function () {
+      await tokensale.sendTransaction({ value: ether, from: user1 });
+
+      await util.expectThrow(tokensale.sendTransaction({ value: new BN('1e18'), from: user2 }));
     });
   });
 
@@ -224,11 +299,14 @@ contract("QWoodDAOTokenSale", function(accounts) {
 
     it('should forward funds to wallet without sender excess', async function () {
       const pre = web3.eth.getBalance(ledger);
+      const preWeiRaised = await tokensale.weiRaised();
 
       await tokensale.buyTokens(userBeneficiary, { value: ether, from: user1 });
 
       const post = web3.eth.getBalance(ledger);
+      const postWeiRaised = await tokensale.weiRaised();
       post.minus(pre).should.be.bignumber.equal(cost);
+      postWeiRaised.minus(preWeiRaised).should.be.bignumber.equal(cost);
     });
 
     it('should fail if tokens on tokensale contract is 0', async function () {
@@ -238,27 +316,151 @@ contract("QWoodDAOTokenSale", function(accounts) {
     });
   });
 
-
-  // TODO: withdraw ether
-  // TODO: withdraw foreign tokens
   describe("Withdraw", function () {
+    const ether = new BN('1e18'),
+          testToken1amount = new BN('3e18');
 
+    before(async () => {
+      await deployTestTokens();
+    });
+
+    beforeEach(async () => {
+      await tokensale.sendTransaction({ value: ether, from: user3 });
+
+      await testToken1.transfer(tokensale.address, testToken1amount, { from: owner });
+    });
+
+    it('should collect ether on wallet (not contract)', async function () {
+      const balance = web3.eth.getBalance(tokensale.address);
+      balance.should.be.bignumber.equal(new BN(0));
+    });
+
+    it('should be able withdraw any tokens to wallet by owner', async function () {
+      const pre = await testToken1.balanceOf(ledger);
+      const preTokensale = await testToken1.balanceOf(tokensale.address);
+
+      await tokensale.withdrawTokens(testToken1.address, { from: owner }).should.be.fulfilled;
+
+      const post = await testToken1.balanceOf(ledger);
+      const postTokensale = await testToken1.balanceOf(tokensale.address);
+      post.minus(pre).should.be.bignumber.equal(testToken1amount);
+      preTokensale.minus(postTokensale).should.be.bignumber.equal(testToken1amount);
+      postTokensale.should.be.bignumber.equal(new BN(0));
+    });
+
+    it('should fail if token address is 0', async function () {
+      await util.expectThrow(tokensale.withdrawTokens(0, { from: owner }));
+    });
+
+    it('should fail if not owner withdraw any tokens', async function () {
+      await util.expectThrow(tokensale.withdrawTokens(testToken1.address, { from: user3 }));
+    });
   });
 
-
-  // TODO: add received tokens
-  // TODO: remove received tokens
-  // TODO: change received tokens rate
   describe("Manage received tokens", function () {
+    const tokenRate = new BN(1000),
+          newTokenRate = new BN(1500);
 
+    let addTestToken1Tx;
+
+    before(async () => {
+      await deployTestTokens();
+    });
+
+    beforeEach(async () => {
+      addTestToken1Tx = await tokensale.addReceivedToken(testToken1.address, 'TestToken1', tokenRate, { from: owner });
+    });
+
+    it('should add received token', async function () {
+      const [
+        tName,
+        tRate,
+        tRaised
+      ] = await tokensale.receivedTokens(testToken1.address);
+
+      tName.should.equal('TestToken1');
+      tRate.should.be.bignumber.equal(tokenRate);
+      tRaised.should.be.bignumber.equal(new BN(0));
+    });
+
+    it('should log adding received token', async function () {
+      const logs = addTestToken1Tx.logs;
+
+      const event = logs.find(e => e.event === 'AddReceivedToken');
+      should.exist(event);
+      event.args.tokenAddress.should.equal(testToken1.address);
+      event.args.name.should.equal('TestToken1');
+      event.args.rate.should.be.bignumber.equal(tokenRate);
+    });
+
+    it('should remove received token', async function () {
+      await tokensale.removeReceivedToken(testToken1.address, { from: owner }).should.be.fulfilled;
+
+      const [
+        tName,
+        tRate,
+        tRaised
+      ] = await tokensale.receivedTokens(testToken1.address);
+
+      tName.should.equal('');
+      tRate.should.be.bignumber.equal(new BN(0));
+      tRaised.should.be.bignumber.equal(new BN(0));
+    });
+
+    it('should log removing received token', async function () {
+      const { logs } = await tokensale.removeReceivedToken(testToken1.address, { from: owner });
+
+      const event = logs.find(e => e.event === 'RemoveReceivedToken');
+      should.exist(event);
+      event.args.tokenAddress.should.equal(testToken1.address);
+    });
+
+    it('should set new token rate', async function () {
+      await tokensale.setReceivedTokenRate(testToken1.address, newTokenRate, { from: owner }).should.be.fulfilled;
+
+      const [
+        tName,
+        tRate,
+        tRaised
+      ] = await tokensale.receivedTokens(testToken1.address);
+
+      tRate.should.be.bignumber.equal(newTokenRate);
+    });
+
+    it('should log changing token rate', async function () {
+      const { logs } = await tokensale.setReceivedTokenRate(testToken1.address, newTokenRate, { from: owner });
+
+      const event = logs.find(e => e.event === 'SetReceivedTokenRate');
+      should.exist(event);
+      event.args.tokenAddress.should.equal(testToken1.address);
+      event.args.newRate.should.be.bignumber.equal(newTokenRate);
+    });
+
+    it('should fail if not owner use manage function', async function () {
+      await util.expectThrow(tokensale.addReceivedToken(testToken2.address, 'TestToken2', tokenRate, { from: user3 }));
+      await util.expectThrow(tokensale.removeReceivedToken(testToken1.address, { from: user3 }));
+      await util.expectThrow(tokensale.setReceivedTokenRate(testToken1.address, newTokenRate, { from: user3 }));
+    });
+
+    it('should fail if used incorrect params', async function () {
+      await util.expectThrow(tokensale.addReceivedToken(0, 'TestToken2', tokenRate, { from: owner }));
+      await util.expectThrow(tokensale.addReceivedToken(testToken2.address, 'TestToken2', new BN(0), { from: owner }));
+
+      await util.expectThrow(tokensale.removeReceivedToken(0, { from: owner }));
+
+      await util.expectThrow(tokensale.setReceivedTokenRate(0, newTokenRate, { from: owner }));
+      await util.expectThrow(tokensale.setReceivedTokenRate(testToken3.address, newTokenRate, { from: owner }));
+      await util.expectThrow(tokensale.setReceivedTokenRate(testToken1.address, new BN(0), { from: owner }));
+
+    });
   });
 
   // TODO: approve + transferFrom scenario -- function depositTokens
   // TODO: approveAndCall scenario -- function receiveApproval
+  // TODO: test tokensRaised after exchange
   describe("Accepting foreign token payments", function () {
 
   });
-
 
   // TODO: internal functions test
 });

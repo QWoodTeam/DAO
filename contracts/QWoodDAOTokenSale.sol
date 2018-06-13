@@ -302,14 +302,12 @@ contract QWoodDAOTokenSale is Pausable {
     uint256 weiAmount = msg.value;
     require(weiAmount != 0);
 
-    // TODO: test
     uint256 tokenBalance = token.balanceOf(address(this));
     require(tokenBalance > 0);
 
     // calculate token amount to be created
     uint256 tokens = _getTokenAmount(address(0), weiAmount);
 
-    // TODO: test
     if (tokens > tokenBalance) {
       tokens = tokenBalance; // new tokens
       weiAmount = _inverseGetTokenAmount(address(0), tokens); // new weiAmount
@@ -366,17 +364,17 @@ contract QWoodDAOTokenSale is Pausable {
     token = _newToken;
   }
 
-  // TODO: test
   /**
    * @dev Withdraws any tokens from this contract to wallet.
    * @param _tokenContract The address of the foreign token
    */
   function withdrawTokens(ERC20 _tokenContract) onlyOwner public {
+    require(_tokenContract != address(0));
+
     uint256 amount = _tokenContract.balanceOf(address(this));
     _tokenContract.transfer(wallet, amount);
   }
 
-  // TODO: test
   /**
    * @dev Withdraws all ether from this contract to wallet.
    */
@@ -384,7 +382,6 @@ contract QWoodDAOTokenSale is Pausable {
     wallet.transfer(address(this).balance);
   }
 
-  // TODO: test
   /**
    * @dev Adds received foreign token.
    * @param _tokenAddress Address of the foreign token being added
@@ -417,7 +414,6 @@ contract QWoodDAOTokenSale is Pausable {
     );
   }
 
-  // TODO: test
   /**
    * @dev Removes received foreign token.
    * @param _tokenAddress Address of the foreign token being removed
@@ -430,8 +426,6 @@ contract QWoodDAOTokenSale is Pausable {
     emit RemoveReceivedToken(_tokenAddress);
   }
 
-
-  // TODO: test
   /**
    * @dev Sets new rate for received foreign token.
    * @param _tokenAddress Address of the foreign token
@@ -448,7 +442,7 @@ contract QWoodDAOTokenSale is Pausable {
     require(receivedTokens[_tokenAddress].rate > 0);
     require(_newTokenRate > 0);
 
-    receivedTokens[_tokenAddress].rate = _newTokenRate; // TODO: test this (???)
+    receivedTokens[_tokenAddress].rate = _newTokenRate;
 
     emit SetReceivedTokenRate(
       _tokenAddress,
