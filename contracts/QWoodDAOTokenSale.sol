@@ -216,6 +216,20 @@ contract QWoodDAOTokenSale is Pausable {
   );
 
   /**
+   * Event for token purchase for token logging
+   * @param purchaser who paid for the tokens
+   * @param beneficiary who got the tokens
+   * @param value foreign tokens units paid for purchase
+   * @param amount amount of tokens purchased
+   */
+  event TokenForTokenPurchase(
+    address indexed purchaser,
+    address indexed beneficiary,
+    uint256 value,
+    uint256 amount
+  );
+
+  /**
    * Event for change rate logging
    * @param newRate new number of token units a buyer gets per wei
    */
@@ -255,6 +269,16 @@ contract QWoodDAOTokenSale is Pausable {
    * @param value excess weis
    */
   event SendEtherExcess(
+    address indexed beneficiary,
+    uint256 value
+  );
+
+  /**
+   * Event for send tokens excess logging
+   * @param beneficiary who gets tokens excess
+   * @param value excess token units
+   */
+  event SendTokensExcess(
     address indexed beneficiary,
     uint256 value
   );
@@ -535,6 +559,11 @@ contract QWoodDAOTokenSale is Pausable {
 
       uint256 senderForeignTokenExcess = _amount.sub(foreignTokenAmount);
       _tokenAddress.transfer(_sender, senderForeignTokenExcess);
+
+      emit SendTokensExcess(
+        _sender,
+        senderForeignTokenExcess
+      );
     }
 
     // update raised state
@@ -542,7 +571,7 @@ contract QWoodDAOTokenSale is Pausable {
 
     // transfer tokens to sender
     _processPurchase(_sender, tokens);
-    emit TokenPurchase(
+    emit TokenForTokenPurchase(
       _sender,
       _sender,
       foreignTokenAmount,

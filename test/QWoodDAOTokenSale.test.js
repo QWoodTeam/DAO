@@ -455,12 +455,164 @@ contract("QWoodDAOTokenSale", function(accounts) {
     });
   });
 
-  // TODO: approve + transferFrom scenario -- function depositTokens
-  // TODO: approveAndCall scenario -- function receiveApproval
-  // TODO: test tokensRaised after exchange
-  describe("Accepting foreign token payments", function () {
+  // Data for tests
+  const testTokens = [
+    {
+      name: 'TestToken1',
+      rate: new BN('1000'),
+      amount: new BN('1e18'),
+      amountToken: new BN('1e18').mul(new BN('1000'))
+    },
+    {
+      name: 'TestToken2',
+      rate: new BN('2000'),
+      amount: new BN('2e18'),
+      amountToken: new BN('2e18').mul(new BN('2000'))
+    },
+    {
+      name: 'TestToken3',
+      rate: new BN('3000'),
+      amount: new BN('3e18'),
+      amountToken: new BN('3e18').mul(new BN('3000'))
+    },
+  ];
 
+  const addTestTokensToReceived = async () => {
+    await tokensale.addReceivedToken(testToken1.address, testTokens[0].name, testTokens[0].rate, { from: owner });
+    await tokensale.addReceivedToken(testToken2.address, testTokens[1].name, testTokens[1].rate, { from: owner });
+  };
+
+  const approveTestTokens = async () => {
+    await testToken1.approve(tokensale.address, testTokens[0].amount, { from: owner });
+
+    // transfer 10 TestToken1 to user1 and approve 1 for tokensale contract
+    await testToken1.transfer(user1, new BN('10e18'), { from: owner });
+    await testToken1.approve(tokensale.address, testTokens[0].amount, { from: user1 });
+  };
+
+  describe("Accepting foreign token payments. Approve + transferFrom scenario", function () {
+    beforeEach(async () => {
+      await deployTestTokens();
+      await addTestTokensToReceived();
+      await approveTestTokens();
+    });
+
+    it("should accept token payments", async function () {
+      await tokensale.depositToken(testToken1.address, testTokens[0].amount, { from: owner }).should.be.fulfilled;
+    });
+
+    it('should fail if used incorrect params, token not received, no approved', async function () {
+      await util.expectThrow(tokensale.depositToken(0, testTokens[0].amount, { from: owner }));
+      await util.expectThrow(tokensale.depositToken(testToken1.address, 0, { from: owner }));
+
+      // TestToken3 not received
+      await util.expectThrow(tokensale.depositToken(testToken3.address, testTokens[2].amount, { from: owner }));
+
+      // TestToken2 received, but not approved for owner
+      await util.expectThrow(tokensale.depositToken(testToken2.address, testTokens[1].amount, { from: owner }));
+    });
+
+    it('should log token purchase', async function () {
+      const { logs } = await tokensale.depositToken(testToken1.address, testTokens[0].amount, { from: owner });
+      const event = logs.find(e => e.event === 'TokenForTokenPurchase');
+
+      should.exist(event);
+      event.args.purchaser.should.equal(owner);
+      event.args.beneficiary.should.equal(owner);
+      event.args.value.should.be.bignumber.equal(testTokens[0].amount);
+      event.args.amount.should.be.bignumber.equal(testTokens[0].amountToken);
+    });
+
+    it('should assign tokens to sender', async function () {
+      await tokensale.depositToken(testToken1.address, testTokens[0].amount, { from: user1 });
+
+      const balance = await token.balanceOf(user1);
+      balance.should.be.bignumber.equal(testTokens[0].amountToken);
+    });
+
+    it('should forward foreign tokens to wallet', async function () {
+      const pre = await testToken1.balanceOf(ledger);
+      const preToken = await tokensale.receivedTokens(testToken1.address);
+
+      await tokensale.depositToken(testToken1.address, testTokens[0].amount, { from: user1 });
+
+      const post = await testToken1.balanceOf(ledger);
+      const postToken = await tokensale.receivedTokens(testToken1.address);
+
+      post.minus(pre).should.be.bignumber.equal(testTokens[0].amount);
+
+      // preToken[2] and postToken[2] - tokenRaised field
+      postToken[2].minus(preToken[2]).should.be.bignumber.equal(testTokens[0].amount);
+    });
   });
 
-  // TODO: internal functions test
+  describe('Accepting foreign token payments with excess. Approve + transferFrom scenario', function () {
+    const testToken1NewRate = new BN(100000); // rate = 100 000 QOD decimals for 1 decimal unit TT1
+
+    const sendTokens = new BN('7e18'), // 7 TT1
+          needTokens = tokensForSale.div(testToken1NewRate); // 5 TT1
+          excessTokens = sendTokens.minus(needTokens); // 2 TT1
+
+    beforeEach(async () => {
+      await deployTestTokens();
+
+      await tokensale.addReceivedToken(testToken1.address, 'TestToken1', testToken1NewRate, { from: owner });
+
+      // transfer 10 TestToken1 to user1 and approve 1 for tokensale contract
+      await testToken1.transfer(user1, new BN('10e18'), { from: owner });
+      await testToken1.approve(tokensale.address, sendTokens, { from: user1 });
+    });
+
+    it('should log send tokens excess', async function () {
+      const { logs } = await tokensale.depositToken(testToken1.address, sendTokens, { from: user1 });
+
+      const event = logs.find(e => e.event === 'SendTokensExcess');
+      should.exist(event);
+      event.args.beneficiary.should.equal(user1);
+      event.args.value.should.be.bignumber.equal(excessTokens);
+    });
+
+    it('should return excess tokens to sender', async function () {
+      const pre = await testToken1.balanceOf(user1);
+
+      await tokensale.depositToken(testToken1.address, sendTokens, { from: user1 });
+
+      const post = await testToken1.balanceOf(user1);
+
+      // with returned excess
+      pre.minus(post).should.be.bignumber.equal(needTokens);
+
+      const balance = await token.balanceOf(user1);
+      balance.should.be.bignumber.equal(tokensForSale); // all 500 000 QOD
+
+      const contractBalance = await token.balanceOf(tokensale.address);
+      contractBalance.should.be.bignumber.equal(new BN(0)); // no tokens
+    });
+
+    it('should forward foreign tokens to wallet without sender tokens excess', async function () {
+      const pre = await testToken1.balanceOf(ledger);
+      const preToken = await tokensale.receivedTokens(testToken1.address);
+
+      await tokensale.depositToken(testToken1.address, sendTokens, { from: user1 });
+
+      const post = await testToken1.balanceOf(ledger);
+      const postToken = await tokensale.receivedTokens(testToken1.address);
+
+      post.minus(pre).should.be.bignumber.equal(needTokens);
+
+      // preToken[2] and postToken[2] - tokenRaised field
+      postToken[2].minus(preToken[2]).should.be.bignumber.equal(needTokens);
+    });
+
+    it('should fail if tokens on tokensale contract is 0', async function () {
+      await tokensale.depositToken(testToken1.address, sendTokens, { from: user1 });
+
+      // Transfer + approve for user2 from user1
+      await testToken1.transfer(user2, new BN('1e18'), { from: user1 });
+      await testToken1.approve(tokensale.address, new BN('1e18'), { from: user2 });
+      await util.expectThrow(tokensale.depositToken(testToken1.address, new BN('1e18'), { from: user2 }));
+    });
+  });
+
+  // TODO: approveAndCall scenario -- function receiveApproval
 });
