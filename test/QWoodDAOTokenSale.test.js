@@ -14,7 +14,9 @@ const QWoodDAOToken = artifacts.require("./QWoodDAOToken.sol");
 
 const TestToken1 = artifacts.require("./TestToken1.sol"),
       TestToken2 = artifacts.require("./TestToken2.sol"),
-      TestToken3 = artifacts.require("./TestToken3.sol");
+      TestToken3 = artifacts.require("./TestToken3.sol"),
+      TestToken4 = artifacts.require("./TestToken4.sol"),
+      TestToken5 = artifacts.require("./TestToken5.sol");
 
 contract("QWoodDAOTokenSale", function(accounts) {
   const eq = assert.equal.bind(assert);
@@ -69,7 +71,7 @@ contract("QWoodDAOTokenSale", function(accounts) {
     await deploy(initRate, tokensForSale);
   });
 
-  describe("Initial State", function () {
+  describe.skip("Initial State", function () {
     it("should own contract", async function () {
       eq(await tokensale.owner(), owner);
     });
@@ -88,7 +90,7 @@ contract("QWoodDAOTokenSale", function(accounts) {
     });
   });
 
-  describe("Changing State", function () {
+  describe.skip("Changing State", function () {
     it("set new rate by only owner", async function () {
       const events = tokensale.ChangeRate();
 
@@ -129,7 +131,7 @@ contract("QWoodDAOTokenSale", function(accounts) {
     });
   });
 
-  describe("Accepting ether payments", function () {
+  describe.skip("Accepting ether payments", function () {
     it("should accept payments", async function () {
       await tokensale.send(new BN('1e18'), { from: user1 }).should.be.fulfilled;
 
@@ -137,7 +139,7 @@ contract("QWoodDAOTokenSale", function(accounts) {
     });
   });
 
-  describe("High-level purchase for ether", function () {
+  describe.skip("High-level purchase for ether", function () {
     it("should log purchase for ether", async function () {
       const { logs } = await tokensale.sendTransaction({ value: valEth, from: user1 });
       const event = logs.find(e => e.event === 'TokenPurchase');
@@ -171,7 +173,7 @@ contract("QWoodDAOTokenSale", function(accounts) {
     });
   });
 
-  describe('Low-level purchase for ether', function () {
+  describe.skip('Low-level purchase for ether', function () {
     it('should log purchase', async function () {
       const { logs } = await tokensale.buyTokens(userBeneficiary, { value: valEth, from: user1 });
       const event = logs.find(e => e.event === 'TokenPurchase');
@@ -203,7 +205,7 @@ contract("QWoodDAOTokenSale", function(accounts) {
     });
   });
 
-  describe('High-level purchase with excess for ether', function () {
+  describe.skip('High-level purchase with excess for ether', function () {
     const newRate = new BN(100000); // rate = 100 000 QOD decimals for 1 wei
 
     const ether = new BN('7e18'), // 7 ETH
@@ -260,7 +262,7 @@ contract("QWoodDAOTokenSale", function(accounts) {
     });
   });
 
-  describe('Low-level purchase with excess for ether', function () {
+  describe.skip('Low-level purchase with excess for ether', function () {
     const newRate = new BN(100000); // rate = 100 000 QOD decimals for 1 wei
 
     const ether = new BN('7e18'), // 7 ETH
@@ -316,7 +318,7 @@ contract("QWoodDAOTokenSale", function(accounts) {
     });
   });
 
-  describe("Withdraw", function () {
+  describe.skip("Withdraw", function () {
     const ether = new BN('1e18'),
           testToken1amount = new BN('3e18');
 
@@ -357,7 +359,7 @@ contract("QWoodDAOTokenSale", function(accounts) {
     });
   });
 
-  describe("Manage received tokens", function () {
+  describe.skip("Manage received tokens", function () {
     const tokenRate = new BN(1000),
           newTokenRate = new BN(1500);
 
@@ -490,7 +492,7 @@ contract("QWoodDAOTokenSale", function(accounts) {
     await testToken1.approve(tokensale.address, testTokens[0].amount, { from: user1 });
   };
 
-  describe("Accepting foreign token payments. Approve + transferFrom scenario", function () {
+  describe.skip("Accepting foreign token payments. Approve + transferFrom scenario", function () {
     beforeEach(async () => {
       await deployTestTokens();
       await addTestTokensToReceived();
@@ -546,7 +548,7 @@ contract("QWoodDAOTokenSale", function(accounts) {
     });
   });
 
-  describe('Accepting foreign token payments with excess. Approve + transferFrom scenario', function () {
+  describe.skip('Accepting foreign token payments with excess. Approve + transferFrom scenario', function () {
     const testToken1NewRate = new BN(100000); // rate = 100 000 QOD decimals for 1 decimal unit TT1
 
     const sendTokens = new BN('7e18'), // 7 TT1
@@ -614,5 +616,58 @@ contract("QWoodDAOTokenSale", function(accounts) {
     });
   });
 
-  // TODO: approveAndCall scenario -- function receiveApproval
+  describe('Accepting foreign token payments. approveAndCall scenario', function () {
+    let testToken4,
+        testToken4Rate = new BN('4000'),
+        amount = new BN('1e18'),
+        amountToken = amount.mul(testToken4Rate);
+
+    beforeEach(async () => {
+      testToken4 = await TestToken4.new({ from: owner });
+      await tokensale.addReceivedToken(testToken4.address, 'TestToken4', testToken4Rate, { from: owner });
+
+      // transfer 10 TestToken4 to user1
+      await testToken4.transfer(user1, new BN('10e18'), { from: owner });
+    });
+
+    it("should accept token payments", async function () {
+      await testToken4.approveAndCall(tokensale.address, amount, 'data', { from: user1 }).should.be.fulfilled;
+    });
+
+    it('should fail if used incorrect params, token not received, msg.sender not token contract', async function () {
+      await util.expectThrow(testToken4.approveAndCall(tokensale.address, 0, 'data', { from: user1 }));
+
+      // not received token
+      const testToken5 = await TestToken5.new({ from: owner });
+      await util.expectThrow(testToken5.approveAndCall(tokensale.address, amount, 'data', { from: owner }));
+
+      // msg.sender not received token contract
+      // approve
+      await testToken4.approve(tokensale.address, amount, { from: user1 });
+      await util.expectThrow(tokensale.receiveApproval(user1, amount, testToken4.address, 'data', { from: user1 }));
+    });
+
+
+    it('should assign tokens to sender', async function () {
+      await testToken4.approveAndCall(tokensale.address, amount, 'data', { from: user1 });
+
+      const balance = await token.balanceOf(user1);
+      balance.should.be.bignumber.equal(amountToken);
+    });
+
+    it('should forward foreign tokens to wallet', async function () {
+      const pre = await testToken4.balanceOf(ledger);
+      const preToken = await tokensale.receivedTokens(testToken4.address);
+
+      await testToken4.approveAndCall(tokensale.address, amount, 'data', { from: user1 });
+
+      const post = await testToken4.balanceOf(ledger);
+      const postToken = await tokensale.receivedTokens(testToken4.address);
+
+      post.minus(pre).should.be.bignumber.equal(amount);
+
+      // preToken[2] and postToken[2] - tokenRaised field
+      postToken[2].minus(preToken[2]).should.be.bignumber.equal(amount);
+    });
+  });
 });

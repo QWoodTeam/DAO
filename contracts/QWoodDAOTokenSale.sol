@@ -1,3 +1,7 @@
+// TODO: 1) public -> external
+// TODO: 2) Add pausable functionality
+// TODO: 3) Docs everywhere
+
 pragma solidity ^0.4.23;
 
 
@@ -160,7 +164,6 @@ contract Pausable is Ownable {
 }
 
 
-// TODO: Add pausable functionality
 /**
  * @title QWoodDAOTokenSale
  * @dev The QWoodDAOTokenSale contract receive ether and other foreign tokens and exchange them to set tokens.
@@ -281,6 +284,14 @@ contract QWoodDAOTokenSale is Pausable {
   event SendTokensExcess(
     address indexed beneficiary,
     uint256 value
+  );
+
+  // TODO: add doc
+  event ReceivedTokens(
+    address indexed from,
+    uint256 amount,
+    address indexed tokenAddress,
+    bytes extraData
   );
 
   /**
@@ -473,18 +484,6 @@ contract QWoodDAOTokenSale is Pausable {
       _newTokenRate
     );
   }
-
-  // TODO: add tokenFallback interface -- transferAndCall scenario
-
-
-  // Token recipient interface implementation
-
-  event ReceivedTokens(
-    address _from,
-    uint256 _amount,
-    address _tokenAddress,
-    bytes _extraData
-  );
 
   // For approveAndCall scenario
   function receiveApproval(
