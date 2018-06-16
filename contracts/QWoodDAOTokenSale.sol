@@ -367,8 +367,6 @@ contract QWoodDAOTokenSale is Pausable {
       weiAmount,
       tokens
     );
-
-    _forwardFunds(weiAmount);
   }
 
   /**
@@ -589,8 +587,6 @@ contract QWoodDAOTokenSale is Pausable {
       foreignTokenAmount,
       tokens
     );
-
-    _forwardTokens(_tokenAddress, foreignTokenAmount);
   }
 
   /**
@@ -656,19 +652,5 @@ contract QWoodDAOTokenSale is Pausable {
     }
 
     return _tokenAmount.div(_rate);
-  }
-
-  /**
-   * @dev Determines how ETH is stored/forwarded on purchases.
-   */
-  function _forwardFunds(uint256 _weiAmount) internal {
-    wallet.transfer(_weiAmount);
-  }
-
-  /**
-   * @dev Determines how foreign tokens is stored/forwarded on purchases.
-   */
-  function _forwardTokens(ERC20 _tokenAddress, uint256 _amount) internal {
-    _tokenAddress.transfer(wallet, _amount);
   }
 }

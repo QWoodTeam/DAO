@@ -8,7 +8,7 @@ contract TestToken2 is StandardToken {
 
   string public constant name = "TestToken2";
   string public constant symbol = "TT2";
-  uint8 public constant decimals = 18;
+  uint8 public constant decimals = 9;
 
   uint256 public constant INITIAL_SUPPLY = 10000 * (10 ** uint256(decimals));
 

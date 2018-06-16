@@ -23,7 +23,7 @@ contract("QWoodDAOTokenSale", function(accounts) {
 
   // Accounts aliases
   const owner = accounts[0];
-  const ledger = accounts[1];
+  let ledger;
   const user1 = accounts[2];
   const user2 = accounts[3];
   const user3 = accounts[4];
@@ -50,7 +50,9 @@ contract("QWoodDAOTokenSale", function(accounts) {
   // Deploy contracts
   const deploy = async (_rate, _tokensForSale) => {
     token = await QWoodDAOToken.new(periodOne, periodTwo, periodThree, { from: owner });
-    tokensale = await QWoodDAOTokenSale.new(initRate, ledger, token.address, { from: owner });
+    tokensale = await QWoodDAOTokenSale.new(initRate, owner, token.address, { from: owner });
+
+    ledger = tokensale.address;
 
     // transfer tokens to tokensale contract
     await token.transfer(tokensale.address, _tokensForSale, { from: owner });
@@ -80,7 +82,7 @@ contract("QWoodDAOTokenSale", function(accounts) {
       const rate = await tokensale.rate();
       assert(rate.eq(initRate));
 
-      eq(await tokensale.wallet(), ledger);
+      eq(await tokensale.wallet(), owner);
       eq(await tokensale.token(), token.address);
     });
 
@@ -338,20 +340,36 @@ contract("QWoodDAOTokenSale", function(accounts) {
       await testToken1.transfer(tokensale.address, testToken1amount, { from: owner });
     });
 
-    it('should collect ether on wallet (not contract)', async function () {
-      const balance = web3.eth.getBalance(tokensale.address);
-      balance.should.be.bignumber.equal(new BN(0));
+    it('should collect ether on wallet', async function () {
+      const pre = web3.eth.getBalance(ledger);
+      await tokensale.sendTransaction({ value: valEth, from: user1 });
+      const post = web3.eth.getBalance(ledger);
+      post.minus(pre).should.be.bignumber.equal(valEth);
+
+      const preBalance = web3.eth.getBalance(owner);
+
+      const { receipt } = await tokensale.withdraw({ from: owner }).should.be.fulfilled;
+      const gas = gasPrice.mul(new BN(receipt.gasUsed));
+
+      const postBalance = web3.eth.getBalance(owner);
+
+      postBalance.minus(preBalance).plus(gas).should.be.bignumber.equal(post);
+
+      const final = web3.eth.getBalance(ledger);
+      final.should.be.bignumber.equal(new BN(0));
     });
 
     it('should be able withdraw any tokens to wallet by owner', async function () {
-      const pre = await testToken1.balanceOf(ledger);
+      const preOwner = await testToken1.balanceOf(owner);
       const preTokensale = await testToken1.balanceOf(tokensale.address);
 
       await tokensale.withdrawTokens(testToken1.address, { from: owner }).should.be.fulfilled;
 
-      const post = await testToken1.balanceOf(ledger);
+      const postOwner = await testToken1.balanceOf(owner);
       const postTokensale = await testToken1.balanceOf(tokensale.address);
-      post.minus(pre).should.be.bignumber.equal(testToken1amount);
+
+      postOwner.minus(preOwner).should.be.bignumber.equal(testToken1amount);
+
       preTokensale.minus(postTokensale).should.be.bignumber.equal(testToken1amount);
       postTokensale.should.be.bignumber.equal(new BN(0));
     });
@@ -360,8 +378,11 @@ contract("QWoodDAOTokenSale", function(accounts) {
       await util.expectThrow(tokensale.withdrawTokens(0, { from: owner }));
     });
 
-    it('should fail if not owner withdraw any tokens', async function () {
+    it('should fail if not owner withdraw', async function () {
       await util.expectThrow(tokensale.withdrawTokens(testToken1.address, { from: user3 }));
+
+      await tokensale.sendTransaction({ value: valEth, from: user1 });
+      await util.expectThrow(tokensale.withdraw({ from: user3 }));
     });
   });
 
