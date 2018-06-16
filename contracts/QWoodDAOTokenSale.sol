@@ -1,7 +1,3 @@
-// TODO: 1) public -> external
-// TODO: 2) Add pausable functionality
-// TODO: 3) Docs everywhere
-
 pragma solidity ^0.4.23;
 
 
@@ -286,13 +282,20 @@ contract QWoodDAOTokenSale is Pausable {
     uint256 value
   );
 
-  // TODO: add doc
+  /**
+   * Event for logging received tokens from approveAndCall function
+   * @param from who send tokens
+   * @param amount amount of received purchased
+   * @param tokenAddress address of token contract
+   * @param extraData data attached to payment
+   */
   event ReceivedTokens(
     address indexed from,
     uint256 amount,
     address indexed tokenAddress,
     bytes extraData
   );
+
 
   /**
    * @param _rate Number of token units a buyer gets per wei
@@ -323,7 +326,7 @@ contract QWoodDAOTokenSale is Pausable {
   /**
  * @dev fallback function ***DO NOT OVERRIDE***
  */
-  function () external payable {
+  function () whenNotPaused external payable {
     buyTokens(msg.sender);
   }
 
@@ -331,7 +334,7 @@ contract QWoodDAOTokenSale is Pausable {
    * @dev low level token purchase ***DO NOT OVERRIDE***
    * @param _beneficiary Address performing the token purchase
    */
-  function buyTokens(address _beneficiary) public payable {
+  function buyTokens(address _beneficiary) whenNotPaused public payable {
     require(_beneficiary != address(0));
 
     uint256 weiAmount = msg.value;
@@ -340,12 +343,11 @@ contract QWoodDAOTokenSale is Pausable {
     uint256 tokenBalance = token.balanceOf(address(this));
     require(tokenBalance > 0);
 
-    // calculate token amount to be created
     uint256 tokens = _getTokenAmount(address(0), weiAmount);
 
     if (tokens > tokenBalance) {
-      tokens = tokenBalance; // new tokens
-      weiAmount = _inverseGetTokenAmount(address(0), tokens); // new weiAmount
+      tokens = tokenBalance;
+      weiAmount = _inverseGetTokenAmount(address(0), tokens);
 
       uint256 senderExcess = msg.value.sub(weiAmount);
       msg.sender.transfer(senderExcess);
@@ -356,10 +358,9 @@ contract QWoodDAOTokenSale is Pausable {
       );
     }
 
-    // update state
     weiRaised = weiRaised.add(weiAmount);
 
-    _processPurchase(_beneficiary, tokens); // transfer tokens to sender
+    _processPurchase(_beneficiary, tokens);
     emit TokenPurchase(
       msg.sender,
       _beneficiary,
@@ -367,14 +368,14 @@ contract QWoodDAOTokenSale is Pausable {
       tokens
     );
 
-    _forwardFunds(weiAmount); // transfer ether to wallet
+    _forwardFunds(weiAmount);
   }
 
   /**
    * @dev Sets new rate.
    * @param _newRate New number of token units a buyer gets per wei
    */
-  function setRate(uint256 _newRate) onlyOwner public {
+  function setRate(uint256 _newRate) onlyOwner external {
     require(_newRate > 0);
     rate = _newRate;
 
@@ -385,7 +386,7 @@ contract QWoodDAOTokenSale is Pausable {
    * @dev Set new wallet address.
    * @param _newWallet New address where collected funds will be forwarded to
    */
-  function setWallet(address _newWallet) onlyOwner public {
+  function setWallet(address _newWallet) onlyOwner external {
     require(_newWallet != address(0));
     wallet = _newWallet;
   }
@@ -394,7 +395,7 @@ contract QWoodDAOTokenSale is Pausable {
    * @dev Set new token address.
    * @param _newToken New address of the token being sold
    */
-  function setToken(ERC20 _newToken) onlyOwner public {
+  function setToken(ERC20 _newToken) onlyOwner external {
     require(_newToken != address(0));
     token = _newToken;
   }
@@ -403,7 +404,7 @@ contract QWoodDAOTokenSale is Pausable {
    * @dev Withdraws any tokens from this contract to wallet.
    * @param _tokenContract The address of the foreign token
    */
-  function withdrawTokens(ERC20 _tokenContract) onlyOwner public {
+  function withdrawTokens(ERC20 _tokenContract) onlyOwner external {
     require(_tokenContract != address(0));
 
     uint256 amount = _tokenContract.balanceOf(address(this));
@@ -413,7 +414,7 @@ contract QWoodDAOTokenSale is Pausable {
   /**
    * @dev Withdraws all ether from this contract to wallet.
    */
-  function withdraw() onlyOwner public {
+  function withdraw() onlyOwner external {
     wallet.transfer(address(this).balance);
   }
 
@@ -429,7 +430,7 @@ contract QWoodDAOTokenSale is Pausable {
     uint256 _tokenRate
   )
     onlyOwner
-    public
+    external
   {
     require(_tokenAddress != address(0));
     require(_tokenRate > 0);
@@ -453,7 +454,7 @@ contract QWoodDAOTokenSale is Pausable {
    * @dev Removes received foreign token.
    * @param _tokenAddress Address of the foreign token being removed
    */
-  function removeReceivedToken(ERC20 _tokenAddress) onlyOwner public {
+  function removeReceivedToken(ERC20 _tokenAddress) onlyOwner external {
     require(_tokenAddress != address(0));
 
     delete receivedTokens[_tokenAddress];
@@ -471,7 +472,7 @@ contract QWoodDAOTokenSale is Pausable {
     uint256 _newTokenRate
   )
     onlyOwner
-    public
+    external
   {
     require(_tokenAddress != address(0));
     require(receivedTokens[_tokenAddress].rate > 0);
@@ -485,14 +486,20 @@ contract QWoodDAOTokenSale is Pausable {
     );
   }
 
-  // For approveAndCall scenario
+  /**
+   * @dev Receives approved foreign tokens and exchange them to tokens.
+   * @param _from Address of foreign tokens sender
+   * @param _amount Amount of the foreign tokens
+   * @param _tokenAddress Address of the foreign token contract
+   * @param _extraData Data attached to payment
+   */
   function receiveApproval(
     address _from,
     uint256 _amount,
     address _tokenAddress,
     bytes _extraData
   )
-    public
+    whenNotPaused external
   {
 
     require(_from != address(0));
@@ -512,26 +519,38 @@ contract QWoodDAOTokenSale is Pausable {
     _exchangeTokens(ERC20(_tokenAddress), _from, _amount);
   }
 
-  // For approve + transferFrom scenario
+  /**
+   * @dev Deposits foreign token and exchange them to tokens.
+   * @param _tokenAddress Address of the foreign token
+   * @param _amount Amount of the foreign tokens
+   */
   function depositToken(
     ERC20 _tokenAddress,
     uint256 _amount
   )
-    public
+    whenNotPaused external
   {
-    // Remember to call ERC20(address).approve(this, amount) or this contract will not be able to do the transfer on your behalf
+    // Remember to call ERC20(address).approve(this, amount)
+    // or this contract will not be able to do the transfer on your behalf
     require(_tokenAddress != address(0));
-    require(receivedTokens[_tokenAddress].rate > 0); // check: token in receivedTokens
+
+    require(receivedTokens[_tokenAddress].rate > 0);
     require(_amount > 0);
 
     _exchangeTokens(_tokenAddress, msg.sender, _amount);
   }
 
+
   // -----------------------------------------
   // Internal interface
   // -----------------------------------------
 
-  // low-level exchange method
+  /**
+   * @dev Exchanges foreign tokens to self token. Low-level exchange method.
+   * @param _tokenAddress Address of the foreign token contract
+   * @param _sender Sender address
+   * @param _amount Number of tokens for exchange
+   */
   function _exchangeTokens(
     ERC20 _tokenAddress,
     address _sender,
@@ -541,20 +560,16 @@ contract QWoodDAOTokenSale is Pausable {
   {
     uint256 foreignTokenAmount = _amount;
 
-    // Transfer tokens to this contract
     require(_tokenAddress.transferFrom(_sender, address(this), foreignTokenAmount));
 
-    // check balance tokens on this contract
     uint256 tokenBalance = token.balanceOf(address(this));
     require(tokenBalance > 0);
 
-    // calculate token amount
     uint256 tokens = _getTokenAmount(_tokenAddress, foreignTokenAmount);
 
-    // check: token excess
     if (tokens > tokenBalance) {
       tokens = tokenBalance;
-      foreignTokenAmount = _inverseGetTokenAmount(_tokenAddress, tokens); // new foreign tokens amount
+      foreignTokenAmount = _inverseGetTokenAmount(_tokenAddress, tokens);
 
       uint256 senderForeignTokenExcess = _amount.sub(foreignTokenAmount);
       _tokenAddress.transfer(_sender, senderForeignTokenExcess);
@@ -565,10 +580,8 @@ contract QWoodDAOTokenSale is Pausable {
       );
     }
 
-    // update raised state
     receivedTokens[_tokenAddress].raised = receivedTokens[_tokenAddress].raised.add(foreignTokenAmount);
 
-    // transfer tokens to sender
     _processPurchase(_sender, tokens);
     emit TokenForTokenPurchase(
       _sender,
@@ -577,12 +590,11 @@ contract QWoodDAOTokenSale is Pausable {
       tokens
     );
 
-    // transfer foreign tokens to wallet (or collect)
     _forwardTokens(_tokenAddress, foreignTokenAmount);
   }
 
   /**
-   * @dev Source of tokens. Override this method to modify the way in which the crowdsale ultimately gets and sends its tokens.
+   * @dev Source of tokens.
    * @param _beneficiary Address performing the token purchase
    * @param _tokenAmount Number of tokens to be emitted
    */
@@ -590,7 +602,7 @@ contract QWoodDAOTokenSale is Pausable {
     address _beneficiary,
     uint256 _tokenAmount
   )
-  internal
+    internal
   {
     token.transfer(_beneficiary, _tokenAmount);
   }
@@ -604,7 +616,7 @@ contract QWoodDAOTokenSale is Pausable {
     address _beneficiary,
     uint256 _tokenAmount
   )
-  internal
+    internal
   {
     _deliverTokens(_beneficiary, _tokenAmount);
   }
@@ -616,7 +628,7 @@ contract QWoodDAOTokenSale is Pausable {
    * @return Number of tokens that can be purchased with the specified _amount (wei or foreign token units)
    */
   function _getTokenAmount(address _tokenAddress, uint256 _amount)
-  internal view returns (uint256)
+    internal view returns (uint256)
   {
     uint256 _rate;
 
@@ -629,9 +641,11 @@ contract QWoodDAOTokenSale is Pausable {
     return _amount.mul(_rate);
   }
 
-  // Get wei or foreign tokens amount (inverse _getTokenAmount method)
+  /**
+   * @dev Get wei or foreign tokens amount. Inverse _getTokenAmount method.
+   */
   function _inverseGetTokenAmount(address _tokenAddress, uint256 _tokenAmount)
-  internal view returns (uint256)
+    internal view returns (uint256)
   {
     uint256 _rate;
 
